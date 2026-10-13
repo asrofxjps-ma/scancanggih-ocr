@@ -2,7 +2,7 @@
  * Serves the HTML UI.
  */
 function doGet() {
-  return HtmlService.createHtmlOutputFromFile('UploadForm')
+  return HtmlService.createHtmlOutputFromFile('index')
     .setTitle('ScanCanggih OCR Ringan')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover')
