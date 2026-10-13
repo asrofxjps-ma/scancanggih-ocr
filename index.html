@@ -14,7 +14,7 @@
   
   <style>
     :root {
-      --bg-main: #0f172a; --card-bg: #1e293b; --primary: #3b82f6; --accent-green: #10b981; --text-main: #f8fafc; --text-muted: #94a3b8;
+      --bg-main: #0f172a; --card-bg: #1e293b; --primary: #3b82f6; --accent-green: #10b981; --danger: #ef4444; --text-main: #f8fafc; --text-muted: #94a3b8;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
     body { background-color: var(--bg-main); color: var(--text-main); min-height: 100vh; display: flex; flex-direction: column; padding: 16px; }
@@ -25,10 +25,16 @@
     .cam-box { background: rgba(59, 130, 246, 0.05); border: 2px dashed rgba(59, 130, 246, 0.3); border-radius: 14px; padding: 24px; text-align: center; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 8px; }
     .cam-icon { width: 50px; height: 50px; border-radius: 50%; background: var(--primary); display: flex; align-items: center; justify-content: center; color: white; font-size: 1.2rem; }
     
-    .preview-img { display: none; width: 100%; max-height: 160px; object-fit: contain; border-radius: 8px; background: #000; }
-    .btn { background: var(--primary); color: white; border: none; padding: 14px; border-radius: 12px; font-weight: 700; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; }
-    .btn:disabled { opacity: 0.5; }
+    .preview-container { display: none; position: relative; width: 100%; max-height: 160px; border-radius: 8px; overflow: hidden; background: #000; text-align: center; }
+    .preview-img { width: 100%; height: 100%; max-height: 160px; object-fit: contain; }
     
+    .btn { background: var(--primary); color: white; border: none; padding: 14px; border-radius: 12px; font-weight: 700; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; }
+    .btn:disabled { opacity: 0.5; pointer-events: none; }
+    .btn-danger { background: rgba(239, 68, 68, 0.15); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.3); }
+    .btn-secondary { background: rgba(255, 255, 255, 0.08); }
+    
+    .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
     textarea { width: 100%; height: 160px; background: rgba(15,23,42,0.6); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 10px; color: #e2e8f0; font-size: 0.85rem; resize: none; outline: none; }
     
     .qr-box { display: flex; flex-direction: column; align-items: center; background: rgba(15, 23, 42, 0.4); padding: 12px; border-radius: 12px; gap: 8px; }
@@ -57,24 +63,33 @@
     <div class="card">
       <div class="card-title">Kamera Pengimbas</div>
       <input type="file" id="camInput" accept="image/*" capture="environment" style="display:none;" onchange="previewFile(event)">
+      
       <div class="cam-box" onclick="document.getElementById('camInput').click()">
         <div class="cam-icon"><i class="fa-solid fa-camera"></i></div>
-        <span style="font-size:0.85rem; font-weight:600;">Ambil Gambar Dokumen</span>
+        <span style="font-size:0.85rem; font-weight:600;">Ambil Gambar / Pilih Fail</span>
       </div>
 
-      <img id="preview" class="preview-img" alt="Pratonton">
+      <div class="preview-container" id="previewContainer">
+        <img id="preview" class="preview-img" alt="Pratonton">
+      </div>
+
       <div id="progText" class="progress-text">Sedang memproses OCR...</div>
       
-      <button class="btn" id="btnSubmit" onclick="runCloudOCR()" disabled>
-        <i class="fa-solid fa-cloud-arrow-up"></i> Hantar & Proses OCR
-      </button>
+      <div class="btn-grid" id="actionButtons" style="display: none;">
+        <button class="btn btn-danger" onclick="resetAll()">
+          <i class="fa-solid fa-xmark"></i> Batal / Reset
+        </button>
+        <button class="btn" id="btnSubmit" onclick="runCloudOCR()">
+          <i class="fa-solid fa-cloud-arrow-up"></i> Proses OCR
+        </button>
+      </div>
     </div>
 
     <!-- Hasil Teks -->
     <div class="card">
       <div class="card-title">Hasil Teks Dokumen</div>
       <textarea id="txtResult" readonly placeholder="Hasil teks dokumen akan muncul di sini..."></textarea>
-      <button class="btn" style="background: rgba(255,255,255,0.08);" onclick="copyText()"><i class="fa-solid fa-copy"></i> Salin Teks</button>
+      <button class="btn btn-secondary" onclick="copyText()"><i class="fa-solid fa-copy"></i> Salin Teks</button>
     </div>
   </div>
 
@@ -101,9 +116,20 @@
         selectedFile = e.target.files[0];
         const preview = document.getElementById('preview');
         preview.src = URL.createObjectURL(selectedFile);
-        preview.style.display = 'block';
-        document.getElementById('btnSubmit').disabled = false;
+        
+        document.getElementById('previewContainer').style.display = 'block';
+        document.getElementById('actionButtons').style.display = 'grid';
       }
+    }
+
+    function resetAll() {
+      selectedFile = null;
+      document.getElementById('camInput').value = '';
+      document.getElementById('preview').src = '';
+      document.getElementById('previewContainer').style.display = 'none';
+      document.getElementById('actionButtons').style.display = 'none';
+      document.getElementById('progText').style.display = 'none';
+      document.getElementById('txtResult').value = '';
     }
 
     async function runCloudOCR() {
@@ -119,7 +145,6 @@
       txt.value = "Sedang menghantar gambar ke pelayan OCR...";
 
       try {
-        // Mampatkan imej kepada saiz kecil supaya pantas dihantar
         const reader = new FileReader();
         reader.onload = async function(e) {
           const img = new Image();
@@ -134,11 +159,10 @@
 
             prog.innerText = "Membaca teks dokumen...";
 
-            // Menggunakan API percuma OCR.space (Sangat stabil untuk pelayar mudah alih)
             const formData = new URLSearchParams();
-            formData.append('apikey', 'helloworld'); // Kunci API percuma umum
+            formData.append('apikey', 'helloworld');
             formData.append('base64Image', base64Image);
-            formData.append('language', 'eng'); // Bahasa Inggeris / Universal
+            formData.append('language', 'eng');
 
             const response = await fetch('https://api.ocr.space/parse/image', {
               method: 'POST',
