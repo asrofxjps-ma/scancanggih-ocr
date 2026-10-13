@@ -8,7 +8,9 @@
   <meta name="theme-color" content="#0f172a">
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <!-- QRCode.js untuk jana QR Code automatik -->
+  
+  <!-- Tesseract.js & QRCode.js -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   
   <style>
@@ -25,13 +27,14 @@
     .cam-icon { width: 50px; height: 50px; border-radius: 50%; background: var(--primary); display: flex; align-items: center; justify-content: center; color: white; font-size: 1.2rem; }
     
     .preview-img { display: none; width: 100%; max-height: 160px; object-fit: contain; border-radius: 8px; background: #000; }
-    .btn { background: var(--primary); color: white; border: none; padding: 14px; border-radius: 12px; font-weight: 700; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
+    .btn { background: var(--primary); color: white; border: none; padding: 14px; border-radius: 12px; font-weight: 700; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; }
     .btn:disabled { opacity: 0.5; }
     
     textarea { width: 100%; height: 160px; background: rgba(15,23,42,0.6); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 10px; color: #e2e8f0; font-size: 0.85rem; resize: none; outline: none; }
     
     .qr-box { display: flex; flex-direction: column; align-items: center; background: rgba(15, 23, 42, 0.4); padding: 12px; border-radius: 12px; gap: 8px; }
     #qrcode img { border-radius: 8px; padding: 4px; background: white; }
+    .progress-text { font-size: 0.75rem; color: var(--accent-green); text-align: center; font-weight: 600; display: none; }
   </style>
 </head>
 <body>
@@ -43,7 +46,7 @@
     </div>
 
     <!-- Kotak QR Code -->
-    <div class="card">
+    <div class="card" id="qrCard">
       <div class="card-title">Kod QR Laman Web Ini</div>
       <div class="qr-box">
         <div id="qrcode"></div>
@@ -61,9 +64,10 @@
       </div>
 
       <img id="preview" class="preview-img" alt="Pratonton">
+      <div id="progText" class="progress-text">Sedang memproses OCR...</div>
       
-      <button class="btn" id="btnSubmit" onclick="sendToCloud()" disabled>
-        <i class="fa-solid fa-cloud-arrow-up"></i> Hantar & Proses OCR
+      <button class="btn" id="btnSubmit" onclick="runOCRLocally()" disabled>
+        <i class="fa-solid fa-bolt"></i> Mulakan Imbasan OCR
       </button>
     </div>
 
@@ -75,12 +79,11 @@
     </div>
   </div>
 
+  <canvas id="canvasUtil" style="display:none;"></canvas>
+
   <script>
-    // ⚠️ MASUKKAN URL WEB APP GOOGLE APPS SCRIPT ANDA DI SINI (Selepas Deploy sebagai doPost)
-    const SCRIPT_URL = "https://asrofxjps-ma.github.io/scancanggih-ocr/";
     let selectedFile = null;
 
-    // Jana QR code secara automatik berdasarkan URL halaman ini
     window.onload = function() {
       const currentUrl = window.location.href;
       if (currentUrl.startsWith('http')) {
@@ -89,6 +92,8 @@
           width: 120,
           height: 120
         });
+      } else {
+        document.getElementById('qrCard').style.display = 'none';
       }
     };
 
@@ -102,44 +107,55 @@
       }
     }
 
-    function sendToCloud() {
+    async function runOCRLocally() {
       if (!selectedFile) return;
 
       const btn = document.getElementById('btnSubmit');
       const txt = document.getElementById('txtResult');
+      const prog = document.getElementById('progText');
+
       btn.disabled = true;
-      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Memproses...';
-      txt.value = "Sedang menghantar dan membaca dokumen di pelayan awan...";
+      prog.style.display = 'block';
+      prog.innerText = "Mengoptimumkan imej...";
+      txt.value = "Sila tunggu sebentar, sedang membaca teks daripada gambar...";
 
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        const base64Data = e.target.result.split(',')[1];
+      try {
+        // Mampatkan imej kepada lebar maksimum 800px supaya telefon tidak hang
+        const reader = new FileReader();
+        reader.onload = async function(e) {
+          const img = new Image();
+          img.onload = async function() {
+            const canvas = document.getElementById('canvasUtil');
+            const ctx = canvas.getContext('2d');
+            let w = img.width, h = img.height;
+            if (w > 800) { h = Math.round((h * 800) / w); w = 800; }
+            canvas.width = w; canvas.height = h;
+            ctx.drawImage(img, 0, 0, w, h);
+            const optimizedData = canvas.toDataURL('image/jpeg', 0.7);
 
-        fetch(SCRIPT_URL, {
-          method: 'POST',
-          body: JSON.stringify({
-            name: selectedFile.name,
-            type: selectedFile.type,
-            base64: base64Data
-          })
-        })
-        .then(res => res.json())
-        .then(data => {
-          if (data.status === "success") {
-            txt.value = data.text;
-          } else {
-            txt.value = "Ralat: " + data.message;
-          }
-        })
-        .catch(err => {
-          txt.value = "Ralat Sambungan: " + err.message;
-        })
-        .finally(() => {
-          btn.disabled = false;
-          btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> Hantar & Proses OCR';
-        });
-      };
-      reader.readAsDataURL(selectedFile);
+            prog.innerText = "Mengekstrak teks (OCR)...";
+
+            // Jalankan Tesseract terus dalam pelayar tanpa pelayan luar
+            const worker = await Tesseract.createWorker('eng+msa');
+            const ret = await worker.recognize(optimizedData);
+            await worker.terminate();
+
+            const resultText = ret.data.text.trim();
+            txt.value = resultText ? resultText : "Tiada teks dikesan pada dokumen ini.";
+            
+            prog.innerText = "Selesai!";
+            btn.disabled = false;
+            setTimeout(() => { prog.style.display = 'none'; }, 2000);
+          };
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(selectedFile);
+
+      } catch (err) {
+        txt.value = "Ralat OCR: " + err.message;
+        prog.style.display = 'none';
+        btn.disabled = false;
+      }
     }
 
     function copyText() {
