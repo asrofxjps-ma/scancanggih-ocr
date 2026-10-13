@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>ScanCanggih Mobile OCR</title>
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#0f172a">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- QRCode.js untuk jana QR Code automatik -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  
+  <style>
+    :root {
+      --bg-main: #0f172a; --card-bg: #1e293b; --primary: #3b82f6; --accent-green: #10b981; --text-main: #f8fafc; --text-muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+    body { background-color: var(--bg-main); color: var(--text-main); min-height: 100vh; display: flex; flex-direction: column; padding: 16px; }
+    .container { max-width: 420px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+    .card { background: var(--card-bg); border-radius: 16px; padding: 16px; border: 1px solid rgba(255,255,255,0.05); display: flex; flex-direction: column; gap: 12px; }
+    .card-title { font-size: 0.7rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    
+    .cam-box { background: rgba(59, 130, 246, 0.05); border: 2px dashed rgba(59, 130, 246, 0.3); border-radius: 14px; padding: 24px; text-align: center; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+    .cam-icon { width: 50px; height: 50px; border-radius: 50%; background: var(--primary); display: flex; align-items: center; justify-content: center; color: white; font-size: 1.2rem; }
+    
+    .preview-img { display: none; width: 100%; max-height: 160px; object-fit: contain; border-radius: 8px; background: #000; }
+    .btn { background: var(--primary); color: white; border: none; padding: 14px; border-radius: 12px; font-weight: 700; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
+    .btn:disabled { opacity: 0.5; }
+    
+    textarea { width: 100%; height: 160px; background: rgba(15,23,42,0.6); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 10px; color: #e2e8f0; font-size: 0.85rem; resize: none; outline: none; }
+    
+    .qr-box { display: flex; flex-direction: column; align-items: center; background: rgba(15, 23, 42, 0.4); padding: 12px; border-radius: 12px; gap: 8px; }
+    #qrcode img { border-radius: 8px; padding: 4px; background: white; }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div style="text-align:center; padding:6px 0;">
+      <h1 style="font-size: 1.1rem; color: var(--primary);">ScanCanggih OCR</h1>
+      <p style="font-size: 0.75rem; color: var(--text-muted);">Imbas kod QR atau ambil gambar dokumen</p>
+    </div>
+
+    <!-- Kotak QR Code -->
+    <div class="card">
+      <div class="card-title">Kod QR Laman Web Ini</div>
+      <div class="qr-box">
+        <div id="qrcode"></div>
+        <span style="font-size: 0.7rem; color: var(--text-muted); text-align: center;">Imbas kod ini menggunakan telefon untuk buka aplikasi terus.</span>
+      </div>
+    </div>
+
+    <!-- Kamera / Ambil Gambar -->
+    <div class="card">
+      <div class="card-title">Kamera Pengimbas</div>
+      <input type="file" id="camInput" accept="image/*" capture="environment" style="display:none;" onchange="previewFile(event)">
+      <div class="cam-box" onclick="document.getElementById('camInput').click()">
+        <div class="cam-icon"><i class="fa-solid fa-camera"></i></div>
+        <span style="font-size:0.85rem; font-weight:600;">Ambil Gambar Dokumen</span>
+      </div>
+
+      <img id="preview" class="preview-img" alt="Pratonton">
+      
+      <button class="btn" id="btnSubmit" onclick="sendToCloud()" disabled>
+        <i class="fa-solid fa-cloud-arrow-up"></i> Hantar & Proses OCR
+      </button>
+    </div>
+
+    <!-- Hasil Teks -->
+    <div class="card">
+      <div class="card-title">Hasil Teks Dokumen</div>
+      <textarea id="txtResult" readonly placeholder="Hasil teks dokumen akan muncul di sini..."></textarea>
+      <button class="btn" style="background: rgba(255,255,255,0.08);" onclick="copyText()"><i class="fa-solid fa-copy"></i> Salin Teks</button>
+    </div>
+  </div>
+
+  <script>
+    // ⚠️ MASUKKAN URL WEB APP GOOGLE APPS SCRIPT ANDA DI SINI (Selepas Deploy sebagai doPost)
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycby1OzvYQIdzc_xUe0UxDmFQagfvFh0YzWULf2v9VxA/dev";
+    let selectedFile = null;
+
+    // Jana QR code secara automatik berdasarkan URL halaman ini
+    window.onload = function() {
+      const currentUrl = window.location.href;
+      if (currentUrl.startsWith('http')) {
+        new QRCode(document.getElementById("qrcode"), {
+          text: currentUrl,
+          width: 120,
+          height: 120
+        });
+      }
+    };
+
+    function previewFile(e) {
+      if (e.target.files.length > 0) {
+        selectedFile = e.target.files[0];
+        const preview = document.getElementById('preview');
+        preview.src = URL.createObjectURL(selectedFile);
+        preview.style.display = 'block';
+        document.getElementById('btnSubmit').disabled = false;
+      }
+    }
+
+    function sendToCloud() {
+      if (!selectedFile) return;
+
+      const btn = document.getElementById('btnSubmit');
+      const txt = document.getElementById('txtResult');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Memproses...';
+      txt.value = "Sedang menghantar dan membaca dokumen di pelayan awan...";
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const base64Data = e.target.result.split(',')[1];
+
+        fetch(SCRIPT_URL, {
+          method: 'POST',
+          body: JSON.stringify({
+            name: selectedFile.name,
+            type: selectedFile.type,
+            base64: base64Data
+          })
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (data.status === "success") {
+            txt.value = data.text;
+          } else {
+            txt.value = "Ralat: " + data.message;
+          }
+        })
+        .catch(err => {
+          txt.value = "Ralat Sambungan: " + err.message;
+        })
+        .finally(() => {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> Hantar & Proses OCR';
+        });
+      };
+      reader.readAsDataURL(selectedFile);
+    }
+
+    function copyText() {
+      const txt = document.getElementById('txtResult');
+      if (!txt.value) return;
+      navigator.clipboard.writeText(txt.value).then(() => alert("Teks berjaya disalin!"));
+    }
+  </script>
+</body>
+</html>
