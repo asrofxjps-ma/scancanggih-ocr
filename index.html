@@ -22,11 +22,27 @@
     .card { background: var(--card-bg); border-radius: 16px; padding: 16px; border: 1px solid rgba(255,255,255,0.05); display: flex; flex-direction: column; gap: 12px; }
     .card-title { font-size: 0.7rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
     
-    .cam-box { background: rgba(59, 130, 246, 0.05); border: 2px dashed rgba(59, 130, 246, 0.3); border-radius: 14px; padding: 24px; text-align: center; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 8px; }
-    .cam-icon { width: 50px; height: 50px; border-radius: 50%; background: var(--primary); display: flex; align-items: center; justify-content: center; color: white; font-size: 1.2rem; }
+    .cam-box { background: rgba(59, 130, 246, 0.05); border: 2px dashed rgba(59, 130, 246, 0.3); border-radius: 14px; padding: 20px; text-align: center; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+    .cam-icon { width: 48px; height: 48px; border-radius: 50%; background: var(--primary); display: flex; align-items: center; justify-content: center; color: white; font-size: 1.1rem; }
+
+    .btn-grid-options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .btn-option { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.08); padding: 12px; border-radius: 12px; color: var(--text-main); font-weight: 600; font-size: 0.8rem; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; }
+    .btn-option:active { background: rgba(255, 255, 255, 0.12); }
     
     .preview-container { display: none; position: relative; width: 100%; max-height: 160px; border-radius: 8px; overflow: hidden; background: #000; text-align: center; }
     .preview-img { width: 100%; height: 100%; max-height: 160px; object-fit: contain; }
+
+    .pdf-tag {
+      display: none;
+      padding: 12px;
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      border-radius: 12px;
+      font-size: 0.8rem;
+      color: #93c5fd;
+      align-items: center;
+      gap: 10px;
+    }
     
     .btn { background: var(--primary); color: white; border: none; padding: 14px; border-radius: 12px; font-weight: 700; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; }
     .btn:disabled { opacity: 0.5; pointer-events: none; }
@@ -47,7 +63,7 @@
   <div class="container">
     <div style="text-align:center; padding:6px 0;">
       <h1 style="font-size: 1.1rem; color: var(--primary);">ScanCanggih OCR</h1>
-      <p style="font-size: 0.75rem; color: var(--text-muted);">Imbas kod QR & ambil gambar dokumen</p>
+      <p style="font-size: 0.75rem; color: var(--text-muted);">Imbas kod QR, ambil gambar, atau pilih PDF</p>
     </div>
 
     <!-- Kotak QR Code -->
@@ -59,18 +75,38 @@
       </div>
     </div>
 
-    <!-- Kamera / Ambil Gambar -->
+    <!-- Pilihan Fail / Kamera -->
     <div class="card">
-      <div class="card-title">Kamera Pengimbas</div>
-      <input type="file" id="camInput" accept="image/*" capture="environment" style="display:none;" onchange="previewFile(event)">
+      <div class="card-title">Pilih Dokumen</div>
       
+      <!-- Input Tersembunyi -->
+      <input type="file" id="camInput" accept="image/*" capture="environment" style="display:none;" onchange="onFileSelected(event)">
+      <input type="file" id="imgPicker" accept="image/*" style="display:none;" onchange="onFileSelected(event)">
+      <input type="file" id="pdfPicker" accept="application/pdf" style="display:none;" onchange="onFileSelected(event)">
+
       <div class="cam-box" onclick="document.getElementById('camInput').click()">
         <div class="cam-icon"><i class="fa-solid fa-camera"></i></div>
-        <span style="font-size:0.85rem; font-weight:600;">Ambil Gambar / Pilih Fail</span>
+        <span style="font-size:0.85rem; font-weight:600;">Ambil Gambar (Kamera HP)</span>
       </div>
 
+      <div class="btn-grid-options">
+        <div class="btn-option" onclick="document.getElementById('imgPicker').click()">
+          <i class="fa-solid fa-image"></i> Galeri Foto
+        </div>
+        <div class="btn-option" onclick="document.getElementById('pdfPicker').click()">
+          <i class="fa-solid fa-file-pdf"></i> Fail PDF
+        </div>
+      </div>
+
+      <!-- Pratonton Imej -->
       <div class="preview-container" id="previewContainer">
         <img id="preview" class="preview-img" alt="Pratonton">
+      </div>
+
+      <!-- Tag PDF -->
+      <div class="pdf-tag" id="pdfTag">
+        <i class="fa-solid fa-file-pdf" style="font-size:1.3rem;"></i>
+        <span id="pdfName" style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">document.pdf</span>
       </div>
 
       <div id="progText" class="progress-text">Sedang memproses OCR...</div>
@@ -111,13 +147,20 @@
       }
     };
 
-    function previewFile(e) {
+    function onFileSelected(e) {
       if (e.target.files.length > 0) {
         selectedFile = e.target.files[0];
-        const preview = document.getElementById('preview');
-        preview.src = URL.createObjectURL(selectedFile);
         
-        document.getElementById('previewContainer').style.display = 'block';
+        if (selectedFile.type === "application/pdf") {
+          document.getElementById('pdfName').innerText = selectedFile.name;
+          document.getElementById('pdfTag').style.display = 'flex';
+          document.getElementById('previewContainer').style.display = 'none';
+        } else {
+          document.getElementById('preview').src = URL.createObjectURL(selectedFile);
+          document.getElementById('previewContainer').style.display = 'block';
+          document.getElementById('pdfTag').style.display = 'none';
+        }
+        
         document.getElementById('actionButtons').style.display = 'grid';
       }
     }
@@ -125,8 +168,11 @@
     function resetAll() {
       selectedFile = null;
       document.getElementById('camInput').value = '';
+      document.getElementById('imgPicker').value = '';
+      document.getElementById('pdfPicker').value = '';
       document.getElementById('preview').src = '';
       document.getElementById('previewContainer').style.display = 'none';
+      document.getElementById('pdfTag').style.display = 'none';
       document.getElementById('actionButtons').style.display = 'none';
       document.getElementById('progText').style.display = 'none';
       document.getElementById('txtResult').value = '';
@@ -141,53 +187,75 @@
 
       btn.disabled = true;
       prog.style.display = 'block';
-      prog.innerText = "Mengoptimumkan imej...";
-      txt.value = "Sedang menghantar gambar ke pelayan OCR...";
+      prog.innerText = "Memuat naik fail...";
+      txt.value = "Sedang menghantar dokumen ke pelayan OCR...";
 
       try {
         const reader = new FileReader();
         reader.onload = async function(e) {
-          const img = new Image();
-          img.onload = async function() {
-            const canvas = document.getElementById('canvasUtil');
-            const ctx = canvas.getContext('2d');
-            let w = img.width, h = img.height;
-            if (w > 1000) { h = Math.round((h * 1000) / w); w = 1000; }
-            canvas.width = w; canvas.height = h;
-            ctx.drawImage(img, 0, 0, w, h);
-            const base64Image = canvas.toDataURL('image/jpeg', 0.8);
+          let base64Data = "";
 
-            prog.innerText = "Membaca teks dokumen...";
+          if (selectedFile.type === "application/pdf") {
+            base64Data = e.target.result.split(',')[1];
+          } else {
+            // Mampatkan imej supaya saiz optimum
+            const img = new Image();
+            img.onload = async function() {
+              const canvas = document.getElementById('canvasUtil');
+              const ctx = canvas.getContext('2d');
+              let w = img.width, h = img.height;
+              if (w > 1000) { h = Math.round((h * 1000) / w); w = 1000; }
+              canvas.width = w; canvas.height = h;
+              ctx.drawImage(img, 0, 0, w, h);
+              sendDataToAPI(canvas.toDataURL('image/jpeg', 0.8).split(',')[1]);
+            };
+            img.src = e.target.result;
+            return;
+          }
 
-            const formData = new URLSearchParams();
-            formData.append('apikey', 'helloworld');
-            formData.append('base64Image', base64Image);
-            formData.append('language', 'eng');
-
-            const response = await fetch('https://api.ocr.space/parse/image', {
-              method: 'POST',
-              body: formData
-            });
-
-            const result = await response.json();
-            
-            if (result && result.ParsedResults && result.ParsedResults.length > 0) {
-              const parsedText = result.ParsedResults[0].ParsedText;
-              txt.value = parsedText.trim() ? parsedText : "Tiada teks dikesan pada dokumen.";
-            } else {
-              txt.value = "Gagal membaca teks dokumen.";
-            }
-
-            prog.innerText = "Selesai!";
-            btn.disabled = false;
-            setTimeout(() => { prog.style.display = 'none'; }, 2000);
-          };
-          img.src = e.target.result;
+          sendDataToAPI(base64Data);
         };
         reader.readAsDataURL(selectedFile);
 
       } catch (err) {
         txt.value = "Ralat Sambungan: " + err.message;
+        prog.style.display = 'none';
+        btn.disabled = false;
+      }
+    }
+
+    async function sendDataToAPI(base64Image) {
+      const btn = document.getElementById('btnSubmit');
+      const txt = document.getElementById('txtResult');
+      const prog = document.getElementById('progText');
+
+      try {
+        prog.innerText = "Membaca teks dokumen...";
+
+        const formData = new URLSearchParams();
+        formData.append('apikey', 'helloworld');
+        formData.append('base64Image', 'data:' + (selectedFile.type || 'image/jpeg') + ';base64,' + base64Image);
+        formData.append('language', 'eng');
+
+        const response = await fetch('https://api.ocr.space/parse/image', {
+          method: 'POST',
+          body: formData
+        });
+
+        const result = await response.json();
+        
+        if (result && result.ParsedResults && result.ParsedResults.length > 0) {
+          const parsedText = result.ParsedResults[0].ParsedText;
+          txt.value = parsedText.trim() ? parsedText : "Tiada teks dikesan pada dokumen.";
+        } else {
+          txt.value = "Gagal membaca teks dokumen.";
+        }
+
+        prog.innerText = "Selesai!";
+        btn.disabled = false;
+        setTimeout(() => { prog.style.display = 'none'; }, 2000);
+      } catch (err) {
+        txt.value = "Ralat API OCR: " + err.message;
         prog.style.display = 'none';
         btn.disabled = false;
       }
